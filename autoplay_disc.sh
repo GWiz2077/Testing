@@ -12,6 +12,14 @@ disc_ready() {
   blkid /dev/sr0 >/dev/null 2>&1
 }
 
+close_vlc() {
+  if pgrep -x vlc >/dev/null; then
+    echo "$(date) Closing VLC because disc was removed" >> "$LOG"
+    pkill -x vlc || true
+    sleep 2
+  fi
+}
+
 play_disc_with_retries() {
   pgrep -x vlc >/dev/null && return 0
 
@@ -35,6 +43,46 @@ play_disc_with_retries() {
     if [ "$runtime" -ge 8 ]; then
       echo "$(date) VLC ran ${runtime}s (OK)" >> "$LOG"
       return 0
+    fi
+
+    echo "$(date) VLC exited after ${runtime}s (retrying)" >> "$LOG"
+    sleep 3
+  done
+}
+
+# Boot case: disc already inserted
+if disc_present; then
+  echo "$(date) Disc already present at startup" >> "$LOG"
+  play_disc_with_retries
+fi
+
+LAST=0
+if disc_present; then
+  LAST=1
+fi
+
+while true; do
+  if disc_present; then
+    NOW=1
+  else
+    NOW=0
+  fi
+
+  # Disc inserted
+  if [ "$LAST" -eq 0 ] && [ "$NOW" -eq 1 ]; then
+    echo "$(date) Disc inserted" >> "$LOG"
+    play_disc_with_retries
+  fi
+
+  # Disc removed
+  if [ "$LAST" -eq 1 ] && [ "$NOW" -eq 0 ]; then
+    echo "$(date) Disc removed" >> "$LOG"
+    close_vlc
+  fi
+
+  LAST="$NOW"
+  sleep 1
+done      return 0
     fi
 
     echo "$(date) VLC exited after ${runtime}s (retrying)" >> "$LOG"
