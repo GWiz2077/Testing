@@ -1,40 +1,50 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-sleep 3
+sleep 5
 
 disc_present() {
-    blkid /dev/sr0 >/dev/null 2>&1
+    udevadm info --query=property --name=/dev/sr0 2>/dev/null | grep -q '^ID_CDROM_MEDIA=1$'
 }
 
 play_movie() {
     if ! pgrep -x vlc >/dev/null; then
-        vlc --fullscreen --no-video-title-show dvdnav:///dev/sr0 &
+        nohup vlc --fullscreen --no-video-title-show dvdnav:///dev/sr0 >/dev/null 2>&1 &
     fi
 }
 
 stop_movie() {
-    if pgrep -x vlc >/dev/null; then
-        pkill -x vlc
-    fi
+    pkill -x vlc >/dev/null 2>&1 || true
 }
+
+# play immediately if disc already in drive at login
+if disc_present; then
+    play_movie
+fi
+
+LAST=0
+if disc_present; then
+    LAST=1
+fi
 
 while true; do
     if disc_present; then
-        play_movie
+        NOW=1
     else
+        NOW=0
+    fi
+
+    if [ "$LAST" -eq 0 ] && [ "$NOW" -eq 1 ]; then
+        sleep 3
+        play_movie
+    fi
+
+    if [ "$LAST" -eq 1 ] && [ "$NOW" -eq 0 ]; then
         stop_movie
     fi
 
-    sleep 2
-done
-  # Disc removed
-  if [ "$LAST" -eq 1 ] && [ "$NOW" -eq 0 ]; then
-    echo "$(date) Disc removed" >> "$LOG"
-    close_vlc
-  fi
-
-  LAST="$NOW"
-  sleep 1
+    LAST="$NOW"
+    sleep 1
+done  sleep 1
 done      return 0
     fi
 
